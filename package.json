@@ -1,0 +1,17 @@
+{
+  "name": "trend-report-tool",
+  "version": "1.0.0",
+  "private": true,
+  "description": "개인용 트렌드 자동 수집·리포트 도구 (Vercel 서버리스 + KV + Cron)",
+  "engines": {
+    "node": ">=18"
+  },
+  "scripts": {
+    "test": "node tests/integration.test.js",
+    "dev": "vercel dev"
+  },
+  "dependencies": {
+    "@upstash/redis": "^1.34.3",
+    "cheerio": "^1.0.0"
+  }
+}

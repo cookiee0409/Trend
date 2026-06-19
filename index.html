@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>트렌드 자동 수집 · 리포트 도구</title>
+  <link rel="stylesheet" href="css/style.css" />
+</head>
+<body>
+  <header>
+    <div>
+      <h1>📈 트렌드 자동 수집 · 리포트 도구</h1>
+      <div class="sub">Google Trends · 네이버 데이터랩 · Trends24 (X) · 개인용 MVP</div>
+    </div>
+    <div class="spacer"></div>
+    <button class="btn" id="btn-collect">🔄 수집 실행</button>
+  </header>
+
+  <div class="container">
+    <div class="note">
+      Vercel 서버리스 + KV 에 저장되며, <b>매일 자동 수집·리포트 생성</b>됩니다(Cron, 21:10 KST).
+      외부 사이트 수집이 실패하면 자동으로 <b>mock 데이터</b>로 대체됩니다.
+      표기되는 값은 절대 검색량이 아니라 <b>검색 관심도 / 내부 기준 주목도</b>입니다.
+    </div>
+
+    <div class="tabs">
+      <button class="tab active" data-tab="today">① 오늘의 트렌드</button>
+      <button class="tab" data-tab="reports">② 리포트</button>
+      <button class="tab" data-tab="candidates">③ 키워드 후보</button>
+      <button class="tab" data-tab="settings">④ 설정 / 데이터</button>
+    </div>
+
+    <!-- 화면 1: 오늘의 트렌드 -->
+    <section class="panel active" id="panel-today">
+      <div class="grid2">
+        <div class="card">
+          <h2>오늘의 Google Trends 급상승 검색어</h2>
+          <div id="today-google"></div>
+        </div>
+        <div class="card">
+          <h2>오늘의 Trends24 X/Twitter 트렌드</h2>
+          <div id="today-x"></div>
+        </div>
+        <div class="card">
+          <h2>네이버 데이터랩 상승 그룹</h2>
+          <div id="today-naver"></div>
+        </div>
+        <div class="card">
+          <h2>오늘 새로 발견된 키워드</h2>
+          <div id="today-new"></div>
+        </div>
+      </div>
+      <div class="card">
+        <h2>실행 로그</h2>
+        <div id="log-box"></div>
+      </div>
+    </section>
+
+    <!-- 화면 2: 리포트 -->
+    <section class="panel" id="panel-reports">
+      <div class="card">
+        <h2>리포트 생성</h2>
+        <button class="btn" id="btn-report-daily">일일 리포트 생성</button>
+        <button class="btn" id="btn-report-weekly">주간 리포트 생성</button>
+        <button class="btn" id="btn-report-monthly">월간 리포트 생성</button>
+        <p class="muted" style="margin-top:8px">규칙 기반 Markdown 리포트가 생성되어 아래 목록에 저장됩니다. (AI 요약은 추후 연동)</p>
+      </div>
+      <div class="report-layout">
+        <div>
+          <h3 class="muted">저장된 리포트</h3>
+          <div id="report-list"></div>
+        </div>
+        <div class="card" id="report-view"></div>
+      </div>
+    </section>
+
+    <!-- 화면 3: 키워드 후보 -->
+    <section class="panel" id="panel-candidates">
+      <div class="card">
+        <h2>키워드 후보 관리</h2>
+        <p class="muted">Google Trends·Trends24 에서 발견된 키워드입니다. 상태를 바꿔 네이버 데이터랩 그룹 추가 후보를 관리하세요.</p>
+        <div id="candidate-list"></div>
+      </div>
+    </section>
+
+    <!-- 화면 4: 설정 / 데이터 -->
+    <section class="panel" id="panel-settings">
+      <div class="card">
+        <h2>설정</h2>
+        <label>수집 시간 (쉼표 구분, KST)</label>
+        <input type="text" id="set-collect-times" placeholder="09:00, 15:00, 21:00" />
+
+        <label>Google Trends 지역 코드 (geo)</label>
+        <input type="text" id="set-geo" placeholder="KR" />
+
+        <label>Trends24 지역</label>
+        <select id="set-trends24-region">
+          <option value="korea">korea</option>
+          <option value="seoul">seoul</option>
+        </select>
+
+        <label>네이버 데이터랩 키워드 그룹 (JSON)</label>
+        <textarea id="set-keywords" rows="10"></textarea>
+        <p class="muted">※ API 키(NAVER_CLIENT_ID/SECRET)는 화면이 아니라 Vercel 환경변수로만 관리합니다.</p>
+
+        <div style="margin-top:14px">
+          <button class="btn" id="btn-save-settings">설정 저장</button>
+        </div>
+      </div>
+
+      <div class="card">
+        <h2>Trends24 수동 입력 (수집 실패 시 대체)</h2>
+        <label>키워드를 줄바꿈으로 입력</label>
+        <textarea id="manual-trends24" rows="5" placeholder="키워드1&#10;키워드2&#10;키워드3"></textarea>
+        <button class="btn" id="btn-manual-trends24" style="margin-top:10px">수동 입력 저장</button>
+      </div>
+
+      <div class="card">
+        <h2>데이터 관리</h2>
+        <button class="btn secondary" id="btn-export">백업 내보내기 (JSON)</button>
+        <p class="muted" style="margin-top:8px">데이터는 서버(KV)에 저장됩니다. 자동 수집은 Vercel Cron 이 처리합니다.</p>
+      </div>
+    </section>
+  </div>
+
+  <script src="js/api.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>
