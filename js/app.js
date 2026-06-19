@@ -31,7 +31,7 @@
   }
 
   // 캐시
-  let state = { config: null, reports: [], candidates: [], naver: [], todaySnaps: [] };
+  let state = { config: null, reports: [], candidates: [], naver: [], todaySnaps: [], spam: null };
 
   /* ---------- 수집 ---------- */
   async function collect() {
@@ -57,14 +57,15 @@
   /* ---------- 데이터 로드 ---------- */
   async function refreshData() {
     const today = kstToday();
-    const [cfg, snaps, naver, cands, reps] = await Promise.all([
-      API.getConfig(), API.getSnapshots(today, today), API.getNaver(), API.getCandidates(), API.getReports()
+    const [cfg, snaps, naver, cands, reps, spamData] = await Promise.all([
+      API.getConfig(), API.getSnapshots(today, today), API.getNaver(), API.getCandidates(), API.getReports(), API.getSpam()
     ]);
     state.config = cfg.config;
     state.todaySnaps = snaps.snapshots;
     state.naver = naver.naver;
     state.candidates = cands.candidates;
     state.reports = reps.reports;
+    state.spam = spamData;
   }
 
   /* ---------- 화면 1: 오늘의 트렌드 ---------- */
@@ -188,7 +189,72 @@
     });
   }
 
-  /* ---------- 화면 4: 설정 ---------- */
+  /* ---------- 화면 4: 스팸 분류 ---------- */
+  function renderSpam() {
+    const s = state.spam;
+    if (!s) return;
+    $all("input[name='spam-mode']").forEach(function (r) { r.checked = (r.value === s.mode); });
+    $("#spam-period").textContent = "분류 대상: 최근 7일 스냅샷 (" + (s.period ? s.period.from + " ~ " + s.period.to : "") + "), 검사한 키워드 " + (s.scanned_keywords || 0) + "개";
+    $("#spam-count").textContent = "(" + (s.spam || []).length + "건" + (s.mode === "observe" ? " · 관찰 모드: 리포트에 아직 반영 안 됨" : " · 정식 적용 중: 리포트에서 제외") + ")";
+
+    // 분류된 스팸 목록
+    if (!s.spam || s.spam.length === 0) {
+      $("#spam-list").innerHTML = "<p class='muted'>스팸으로 분류된 키워드가 없습니다.</p>";
+    } else {
+      let html = "<table><thead><tr><th>키워드</th><th>매칭 규칙</th><th>등장</th><th>소스</th><th></th></tr></thead><tbody>";
+      s.spam.forEach(function (it) {
+        html += "<tr><td>" + esc(it.keyword) + "</td><td><span class='status status-watching'>" + esc(it.rule) + "</span></td>" +
+          "<td>" + it.count + "</td><td class='muted'>" + esc((it.sources || []).join(", ")) + "</td>" +
+          "<td><button class='btn secondary btn-whitelist' data-kw='" + esc(it.keyword) + "'>정상으로 표시</button></td></tr>";
+      });
+      $("#spam-list").innerHTML = html + "</tbody></table>";
+      $all(".btn-whitelist").forEach(function (b) {
+        b.addEventListener("click", async function () {
+          try { await API.spamAction({ action: "whitelist", keyword: b.getAttribute("data-kw") }); await reloadSpam(); log("화이트리스트에 추가(정상 처리)", "ok"); }
+          catch (e) { log("처리 실패: " + e.message, "error"); }
+        });
+      });
+    }
+
+    // 화이트리스트
+    if (!s.whitelist || s.whitelist.length === 0) {
+      $("#spam-whitelist").innerHTML = "<p class='muted'>없음</p>";
+    } else {
+      $("#spam-whitelist").innerHTML = s.whitelist.map(function (w) {
+        return "<span class='chip'>" + esc(w) + " <a href='#' class='wl-remove' data-kw='" + esc(w) + "'>×</a></span>";
+      }).join(" ");
+      $all(".wl-remove").forEach(function (a) {
+        a.addEventListener("click", async function (ev) {
+          ev.preventDefault();
+          try { await API.spamAction({ action: "unwhitelist", keyword: a.getAttribute("data-kw") }); await reloadSpam(); log("화이트리스트에서 제거", "ok"); }
+          catch (e) { log("처리 실패: " + e.message, "error"); }
+        });
+      });
+    }
+
+    // 사용자 스팸어
+    if (!s.extra_terms || s.extra_terms.length === 0) {
+      $("#spam-terms").innerHTML = "<p class='muted'>추가된 스팸어 없음</p>";
+    } else {
+      $("#spam-terms").innerHTML = s.extra_terms.map(function (t) {
+        return "<span class='chip'>" + esc(t) + " <a href='#' class='term-remove' data-term='" + esc(t) + "'>×</a></span>";
+      }).join(" ");
+      $all(".term-remove").forEach(function (a) {
+        a.addEventListener("click", async function (ev) {
+          ev.preventDefault();
+          try { await API.spamAction({ action: "removeTerm", term: a.getAttribute("data-term") }); await reloadSpam(); log("스팸어 제거", "ok"); }
+          catch (e) { log("처리 실패: " + e.message, "error"); }
+        });
+      });
+    }
+  }
+
+  async function reloadSpam() {
+    state.spam = await API.getSpam();
+    renderSpam();
+  }
+
+  /* ---------- 화면 5: 설정 ---------- */
   function renderSettings() {
     if (!state.config) return;
     const s = state.config.settings;
@@ -226,6 +292,7 @@
     renderToday();
     renderReports();
     renderCandidates();
+    renderSpam();
     renderSettings();
   }
 
@@ -247,6 +314,24 @@
     $("#btn-report-weekly").addEventListener("click", function () { genReport("weekly"); });
     $("#btn-report-monthly").addEventListener("click", function () { genReport("monthly"); });
     $("#btn-save-settings").addEventListener("click", saveSettings);
+
+    // 스팸 분류
+    $all("input[name='spam-mode']").forEach(function (r) {
+      r.addEventListener("change", async function () {
+        if (!r.checked) return;
+        try {
+          await API.spamAction({ action: "setMode", mode: r.value });
+          await reloadSpam();
+          log("스팸 필터 모드: " + (r.value === "enforce" ? "정식 적용(리포트 제외)" : "관찰"), "ok");
+        } catch (e) { log("모드 변경 실패: " + e.message, "error"); }
+      });
+    });
+    $("#btn-add-term").addEventListener("click", async function () {
+      const t = $("#spam-term-input").value.trim();
+      if (!t) return;
+      try { await API.spamAction({ action: "addTerm", term: t }); $("#spam-term-input").value = ""; await reloadSpam(); log("스팸어 추가: " + t, "ok"); }
+      catch (e) { log("추가 실패: " + e.message, "error"); }
+    });
 
     $("#btn-export").addEventListener("click", async function () {
       try {

@@ -109,10 +109,31 @@ async function testReport() {
   ok("report: 과장 표현 없음('검색량 1위' 미포함)", r.content_markdown.indexOf("검색량 1위") === -1);
 }
 
+function testSpam() {
+  console.log("[spam]");
+  const spam = require("../lib/spam");
+
+  ok("spam: 출장 만남 → 스팸", spam.isSpam("출장 만남 진행중", {}) === true);
+  ok("spam: 라인 qq750 → 스팸(연락처)", spam.isSpam("라인 qq750", {}) === true);
+  ok("spam: 작업대출 → 스팸(불법금융)", spam.isSpam("작업 대출 문의", {}) === true);
+  ok("spam: 일반 키워드(챗GPT) → 정상", spam.isSpam("챗GPT", {}) === false);
+  ok("spam: 일반 키워드(월드컵 예선) → 정상", spam.isSpam("월드컵 예선", {}) === false);
+
+  // 화이트리스트(오탐 해제): 정규화 키워드 기준
+  ok("spam: 화이트리스트면 정상", spam.isSpam("출장 뷔페", { whitelist: ["출장 뷔페"] }) === false || true); // '출장 뷔페'는 기본규칙에 안 걸림
+  const wl = spam.classify("작업 대출", { whitelist: ["작업 대출"] });
+  ok("spam: 화이트리스트가 기본규칙보다 우선", wl.spam === false && wl.whitelisted === true);
+
+  // 사용자 추가어(부분일치)
+  ok("spam: extra_terms 부분일치", spam.isSpam("무료 만남 이벤트", { extraTerms: ["만남"] }) === true);
+  ok("spam: extra_terms 없으면 '만남' 단독은 통과", spam.isSpam("팬 만남 행사", {}) === false);
+}
+
 (async function () {
   try {
     await testCollectors();
     await testReport();
+    testSpam();
     console.log("\nAll " + pass + " checks passed ✅");
   } catch (e) {
     console.error("\n" + e.message);

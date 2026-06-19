@@ -27,7 +27,8 @@
       <button class="tab active" data-tab="today">① 오늘의 트렌드</button>
       <button class="tab" data-tab="reports">② 리포트</button>
       <button class="tab" data-tab="candidates">③ 키워드 후보</button>
-      <button class="tab" data-tab="settings">④ 설정 / 데이터</button>
+      <button class="tab" data-tab="spam">④ 스팸 분류</button>
+      <button class="tab" data-tab="settings">⑤ 설정 / 데이터</button>
     </div>
 
     <!-- 화면 1: 오늘의 트렌드 -->
@@ -83,7 +84,43 @@
       </div>
     </section>
 
-    <!-- 화면 4: 설정 / 데이터 -->
+    <!-- 화면 4: 스팸 분류 -->
+    <section class="panel" id="panel-spam">
+      <div class="card">
+        <h2>스팸 분류 관리</h2>
+        <p class="muted">한국 X 트렌드에 섞이는 광고성 스팸을 분류합니다. 오탐(정상인데 스팸으로 잡힘)이 있으면
+          <b>[정상으로 표시]</b>로 화이트리스트에 넣으세요. 충분히 검토한 뒤 <b>정식 적용</b>으로 바꾸면 리포트에서 제외됩니다.</p>
+        <div class="row-inline" style="margin:10px 0">
+          <b>모드:</b>
+          <label class="row-inline"><input type="radio" name="spam-mode" value="observe" /> 관찰(분류만, 리포트 영향 없음)</label>
+          <label class="row-inline"><input type="radio" name="spam-mode" value="enforce" /> 정식 적용(리포트에서 제외)</label>
+        </div>
+        <div id="spam-period" class="muted" style="font-size:12px"></div>
+      </div>
+
+      <div class="card">
+        <h3>스팸으로 분류된 키워드 <span id="spam-count" class="muted"></span></h3>
+        <div id="spam-list"></div>
+      </div>
+
+      <div class="grid2">
+        <div class="card">
+          <h3>화이트리스트 (정상 처리됨)</h3>
+          <div id="spam-whitelist"></div>
+        </div>
+        <div class="card">
+          <h3>사용자 스팸어 추가</h3>
+          <p class="muted">부분일치로 차단됩니다. 예: <code>만남</code>, <code>대출</code></p>
+          <div class="row-inline">
+            <input type="text" id="spam-term-input" placeholder="스팸 키워드" />
+            <button class="btn" id="btn-add-term">추가</button>
+          </div>
+          <div id="spam-terms" style="margin-top:10px"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 화면 5: 설정 / 데이터 -->
     <section class="panel" id="panel-settings">
       <div class="card">
         <h2>설정</h2>

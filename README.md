@@ -108,7 +108,19 @@ git push -u origin main
 | ① 오늘의 트렌드 | 오늘 수집된 Google/Trends24/네이버 상승 그룹/새 키워드 + 로그 |
 | ② 리포트 | 일·주·월 리포트 생성, Markdown 복사/다운로드/삭제 |
 | ③ 키워드 후보 | 발견 키워드 상태 변경(new/watching/ignored/added_to_naver) |
-| ④ 설정/데이터 | 수집 시간·지역·키워드 그룹 편집, Trends24 수동 입력, 백업 |
+| ④ 스팸 분류 | 광고성 스팸 분류·관리(관찰/정식 적용, 화이트리스트, 사용자 스팸어) |
+| ⑤ 설정/데이터 | 수집 시간·지역·키워드 그룹 편집, Trends24 수동 입력, 백업 |
+
+### 스팸 분류 (④ 탭)
+한국 X 트렌드에는 광고성 스팸(성인서비스/연락처유도/불법금융/도박)이 섞입니다.
+오탐(정상인데 스팸으로 잡힘)을 막기 위해 **분류와 제외를 분리**했습니다.
+- **관찰(observe) 모드 — 기본값**: 스팸으로 *분류만* 하고 리포트에는 그대로 둡니다(데이터 손실 없음).
+  ④ 탭에서 어떤 키워드가 잡히는지 한동안 지켜보세요.
+- **오탐 처리**: 정상 키워드가 잡히면 **[정상으로 표시]** → 화이트리스트로 이동(항상 정상 처리).
+- **사용자 스팸어 추가**: 기본 규칙이 못 잡는 스팸은 직접 단어를 추가(부분일치).
+- **정식 적용(enforce) 모드**: 충분히 검토 후 전환하면 그때부터 리포트 집계에서 스팸을 제외합니다.
+
+> 기본 규칙은 오탐을 줄이려 보수적입니다(모호한 단일 단어 제외). 규칙은 [lib/spam.js](lib/spam.js) 참고.
 
 수집을 기다리지 않고 바로 보고 싶으면 우측 상단 **[🔄 수집 실행]** 을 누르세요.
 Trends24 가 실패할 때는 ④설정의 **수동 입력**으로 키워드를 붙여넣을 수 있습니다.
@@ -142,6 +154,7 @@ npm run dev       # vercel dev (Vercel CLI 필요: npm i -g vercel)
     snapshots.js          GET 조회 / POST 수동 입력
     naver.js              GET 네이버 데이터랩
     candidates.js         GET / PATCH 키워드 후보
+    spam.js               GET 스팸 분류현황 / POST 모드·화이트리스트·스팸어 관리
     reports.js            GET 목록 / POST 생성 / DELETE / (크론 generate)
     state.js              GET 전체 백업
   lib/                    공유 로직(함수가 아님, import 전용)
@@ -149,6 +162,7 @@ npm run dev       # vercel dev (Vercel CLI 필요: npm i -g vercel)
     collect-service.js    수집 핵심 로직(collect/cron 공용)
     collectors.js         Google RSS / Trends24 HTML / 네이버 API (+mock fallback)
     report.js             규칙 기반 MD 리포트 (KST, generateAiSummary 자리)
+    spam.js               스팸 분류기(보수적 규칙 + 화이트리스트/사용자어)
     normalize.js scoring.js mock.js http.js
   tests/integration.test.js
   vercel.json             Cron 스케줄

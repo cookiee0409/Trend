@@ -41,7 +41,9 @@
     getReports: function () { return req("/api/reports"); },
     generateReport: function (type) { return req("/api/reports", { method: "POST", body: JSON.stringify({ type: type }) }); },
     deleteReport: function (id) { return req("/api/reports?id=" + encodeURIComponent(id), { method: "DELETE" }); },
-    getState: function () { return req("/api/state"); }
+    getState: function () { return req("/api/state"); },
+    getSpam: function () { return req("/api/spam"); },
+    spamAction: function (payload) { return req("/api/spam", { method: "POST", body: JSON.stringify(payload) }); }
   };
 
   global.API = API;
