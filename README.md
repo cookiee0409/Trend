@@ -161,16 +161,40 @@ npm run dev       # vercel dev (Vercel CLI 필요: npm i -g vercel)
 
 - **Google Trends**: 공식 API 아님(RSS 기반). 값은 절대 검색량이 아니라 **상대적 검색 관심도/급상승 검색어**.
 - **네이버 데이터랩**: "전체 인기검색어"가 아니라 **지정 키워드 그룹의 검색 관심도 추이**. `ratio` 는 절대 검색량 아님.
-- **Trends24**: X 공식 API 아닌 **제3자 사이트**이며 **봇 차단**이 있습니다. 특히 Vercel 같은 데이터센터 IP에는
-  트렌드가 없는 차단 페이지를 응답하는 경우가 많아, 서버 자동 수집은 자주 **mock 으로 대체**됩니다.
-  제안서 원칙(우회·차단 회피 금지)에 따라 이를 우회하지 않습니다. 실데이터가 필요하면 ④설정의
-  **Trends24 수동 입력**에 trends24.in/korea 의 키워드를 붙여넣으세요. (Google Trends·네이버는 서버에서 정상 수집됩니다.)
+- **Trends24**: X 공식 API 아닌 **제3자 사이트**. 서버에서 `ol.trend-card__list` 를 파싱해 수집합니다.
+  사이트 구조가 또 바뀌면 파싱이 실패할 수 있고, 그때는 mock 으로 대체되며 아래 보조 수집을 쓰면 됩니다.
+  한국 X 트렌드에는 **광고성 스팸 키워드**(예: 만남/대출 등)가 섞여 들어올 수 있습니다 — 이는 실제 트렌드 내용입니다.
 
 리포트 문장은 과장하지 않습니다 — "검색량 1위"가 아니라 **"수집 기준 상위 / 검색 관심도 상승 / 반복 등장 / 내부 기준 주목도"**.
 
 ---
 
-## 7. 향후 확장
+## 7. Trends24 보조 수집 (서버 수집 실패 시)
+
+서버 수집은 정상 동작하지만, 사이트 구조 변경 등으로 실패할 때를 대비한 두 가지 백업입니다.
+(둘 다 trends24 를 정상 방문자로 읽는 방식이며, 프록시/지문위조 같은 차단 회피가 아닙니다.)
+
+### A. 북마클릿 (설치 없음, 클릭 1번)
+아래 코드를 북마크의 URL 로 저장하고, **trends24.in/korea 페이지를 연 상태에서** 클릭하면
+현재 화면의 트렌드가 API 로 전송됩니다. (도메인은 본인 배포 주소로 교체)
+```js
+javascript:(function(){var l=document.querySelector('.trend-card__list');if(!l){alert('트렌드 목록을 찾지 못했습니다');return;}var items=[].slice.call(l.querySelectorAll('li a')).map(function(a,i){return{keyword:a.textContent.trim(),rank:i+1};}).filter(function(x){return x.keyword;});fetch('https://cookie-trend.vercel.app/api/snapshots',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({source:'trends24_x',region:'korea',items:items})}).then(function(r){return r.json();}).then(function(j){alert('전송: '+(j.added!=null?j.added+'건':JSON.stringify(j)));}).catch(function(e){alert('실패: '+e.message);});})();
+```
+
+### B. 로컬 스크립트 + Windows 작업 스케줄러 (완전 자동)
+사용자 PC(일반 회선)에서 trends24 를 읽어 API 로 푸시합니다. → [tools/collect-trends24-local.js](tools/collect-trends24-local.js)
+```bash
+npm install              # cheerio 필요(최초 1회)
+TREND_API=https://cookie-trend.vercel.app node tools/collect-trends24-local.js
+```
+**Windows 작업 스케줄러로 하루 2~3회 자동 실행**:
+1. 작업 스케줄러 → 기본 작업 만들기 → 트리거: 매일, 시간 09:00/15:00/21:00(각각 작업 추가)
+2. 동작: 프로그램 시작 → 프로그램 `node`, 인수 `tools\collect-trends24-local.js`, 시작 위치 = 이 프로젝트 폴더
+3. (선택) 환경변수 대신 스크립트 상단 기본값(`https://cookie-trend.vercel.app`)을 그대로 써도 됩니다.
+
+---
+
+## 8. 향후 확장
 
 - [lib/report.js](lib/report.js) 의 `generateAiSummary()` 에 Claude/OpenAI API 를 연결하면 요약 품질을 높일 수 있습니다(현재 null, 규칙 기반만 사용).
 - 저장 데이터가 커지면 KV 배열 통째 읽기/쓰기 대신 페이지네이션/요약 테이블 도입을 고려하세요(개인용 규모에선 충분).

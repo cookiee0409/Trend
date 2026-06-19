@@ -7,8 +7,18 @@ const report = require("../lib/report");
 const { normalizeKeyword } = require("../lib/normalize");
 const { json, handleError } = require("../lib/http");
 
+// 북마클릿(trends24.in 등 다른 출처)에서 수동 입력 POST 를 허용하기 위한 CORS.
+// 이 엔드포인트는 데이터 추가만 하므로 개인용 범위에서 전체 허용해도 무방하다.
+function setCors(res) {
+  res.setHeader("Access-Control-Allow-Origin", "*");
+  res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
+  res.setHeader("Access-Control-Allow-Headers", "Content-Type");
+}
+
 module.exports = async (req, res) => {
   try {
+    setCors(res);
+    if (req.method === "OPTIONS") { res.status(204).end(); return; }
     if (req.method === "GET") {
       const all = await store.getSnapshots();
       const from = req.query && req.query.from;
