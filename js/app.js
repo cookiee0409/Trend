@@ -37,9 +37,10 @@
   async function collect() {
     log("수집 요청...", "info");
     try {
-      const r = await API.collect(true);
+      const r = await API.collect(false);
       if (r.skipped) {
-        log("수집 건너뜀 (쿨다운). 마지막: " + r.last_collect_at, "warn");
+        const mins = r.last_collect_at ? Math.round((Date.now() - new Date(r.last_collect_at).getTime()) / 60000) : "?";
+        log("최근(" + mins + "분 전) 이미 수집됨 — 중복 방지로 건너뜁니다. 기존 데이터를 표시합니다.", "warn");
       } else {
         (r.log || []).forEach(function (l) {
           log(l.source + ": " + l.message + " → 신규 " + l.added + "건" + (l.mock ? " (mock)" : ""), l.mock ? "warn" : "ok");

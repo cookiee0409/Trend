@@ -90,9 +90,12 @@ git push -u origin main
 - **Pro 플랜**: [vercel.json](vercel.json) 의 cron 을 `0 0,6,12 * * *`(수집)처럼 늘리면 됩니다.
 - **무료 유지 + 외부 크론**(권장): https://cron-job.org 등에서 아래 URL을 09:00/15:00/21:00(KST)에 호출:
   ```
-  https://<프로젝트>.vercel.app/api/collect?key=<CRON_SECRET>
+  https://<프로젝트>.vercel.app/api/collect?force=1&key=<CRON_SECRET>
   ```
   리포트만 따로 돌리려면: `https://<프로젝트>.vercel.app/api/cron?key=<CRON_SECRET>`
+
+> 참고: 화면의 [수집 실행] 버튼은 키 없이 동작하는 **비강제 수집**(20분 쿨다운)입니다.
+> 쿨다운을 무시하는 `force=1` 수집만 `key=<CRON_SECRET>` 가 필요합니다.
 
 수집은 과도한 요청 방지를 위해 **20분 쿨다운**이 있습니다(중복 호출 시 자동 skip). 화면의 [수집 실행] 버튼은 즉시(force) 수집합니다.
 
@@ -158,7 +161,10 @@ npm run dev       # vercel dev (Vercel CLI 필요: npm i -g vercel)
 
 - **Google Trends**: 공식 API 아님(RSS 기반). 값은 절대 검색량이 아니라 **상대적 검색 관심도/급상승 검색어**.
 - **네이버 데이터랩**: "전체 인기검색어"가 아니라 **지정 키워드 그룹의 검색 관심도 추이**. `ratio` 는 절대 검색량 아님.
-- **Trends24**: X 공식 API 아닌 **제3자 사이트**. 구조 변경 시 파싱 실패 가능 → mock/수동 입력으로 대체. 과도 요청 금지(하루 2~3회).
+- **Trends24**: X 공식 API 아닌 **제3자 사이트**이며 **봇 차단**이 있습니다. 특히 Vercel 같은 데이터센터 IP에는
+  트렌드가 없는 차단 페이지를 응답하는 경우가 많아, 서버 자동 수집은 자주 **mock 으로 대체**됩니다.
+  제안서 원칙(우회·차단 회피 금지)에 따라 이를 우회하지 않습니다. 실데이터가 필요하면 ④설정의
+  **Trends24 수동 입력**에 trends24.in/korea 의 키워드를 붙여넣으세요. (Google Trends·네이버는 서버에서 정상 수집됩니다.)
 
 리포트 문장은 과장하지 않습니다 — "검색량 1위"가 아니라 **"수집 기준 상위 / 검색 관심도 상승 / 반복 등장 / 내부 기준 주목도"**.
 
