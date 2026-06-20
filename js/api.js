@@ -52,7 +52,8 @@
     },
     getPosts: function (type, keyword) {
       return req("/api/posts?type=" + encodeURIComponent(type) + "&keyword=" + encodeURIComponent(keyword));
-    }
+    },
+    getYoutube: function () { return req("/api/youtube"); }
   };
 
   global.API = API;

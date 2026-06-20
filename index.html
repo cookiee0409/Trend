@@ -27,9 +27,10 @@
       <button class="tab active" data-tab="today">① 오늘의 트렌드</button>
       <button class="tab" data-tab="reports">② 리포트</button>
       <button class="tab" data-tab="blogcafe">③ 블로그·카페</button>
-      <button class="tab" data-tab="candidates">④ 키워드 후보</button>
-      <button class="tab" data-tab="spam">⑤ 스팸 분류</button>
-      <button class="tab" data-tab="settings">⑥ 설정 / 데이터</button>
+      <button class="tab" data-tab="youtube">④ YouTube</button>
+      <button class="tab" data-tab="candidates">⑤ 키워드 후보</button>
+      <button class="tab" data-tab="spam">⑥ 스팸 분류</button>
+      <button class="tab" data-tab="settings">⑦ 설정 / 데이터</button>
     </div>
 
     <!-- 화면 1: 오늘의 트렌드 -->
@@ -99,7 +100,25 @@
       </div>
     </section>
 
-    <!-- 화면 5: 스팸 분류 -->
+    <!-- 화면 4: YouTube -->
+    <section class="panel" id="panel-youtube">
+      <div class="card">
+        <h2>YouTube 인기 영상 흐름 (최근 7일)</h2>
+        <p class="muted">한국 인기 영상(videos.list mostPopular)과 Google Trends 키워드 검색 결과입니다.
+          조회수·댓글 수는 수집 시점 기준 스냅샷입니다. 키 없으면 mock으로 동작합니다.</p>
+        <div class="grid2">
+          <div><h3>카테고리 분포</h3><div id="yt-categories"></div></div>
+          <div><h3>반복 등장 채널</h3><div id="yt-channels"></div></div>
+        </div>
+        <div id="yt-keyword-links"></div>
+      </div>
+      <div class="card">
+        <h3>오늘의 한국 인기 영상</h3>
+        <div id="yt-popular"></div>
+      </div>
+    </section>
+
+    <!-- 화면 6: 스팸 분류 -->
     <section class="panel" id="panel-spam">
       <div class="card">
         <h2>스팸 분류 관리</h2>
@@ -167,8 +186,25 @@
             <input type="text" id="set-ns-maxres" placeholder="30" />
           </div>
         </div>
-        <label>제외 키워드 (쉼표 구분, 블로그·카페 검색에서 제외)</label>
+        <label>제외 키워드 (쉼표 구분, 블로그·카페·YouTube 검색에서 제외)</label>
         <input type="text" id="set-ignore" placeholder="로또, 날씨" />
+
+        <h3>YouTube</h3>
+        <label class="row-inline"><input type="checkbox" id="set-yt-enabled" /> YouTube 수집 사용</label>
+        <label class="row-inline"><input type="checkbox" id="set-yt-kwsearch" /> Google Trends 키워드 검색 사용(quota 소모 큼)</label>
+        <div class="grid2" style="margin-top:8px">
+          <div>
+            <label>인기 영상 수 (최대 50)</label>
+            <input type="text" id="set-yt-maxpop" placeholder="50" />
+          </div>
+          <div>
+            <label>검색 키워드 수 / 키워드당 결과</label>
+            <div class="row-inline">
+              <input type="text" id="set-yt-maxkw" placeholder="8" />
+              <input type="text" id="set-yt-perkw" placeholder="10" />
+            </div>
+          </div>
+        </div>
 
         <div style="margin-top:14px">
           <button class="btn" id="btn-save-settings">설정 저장</button>

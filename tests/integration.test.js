@@ -97,6 +97,9 @@ async function testReport() {
   store.getCandidates = async () => cands;
   store.getBlog = async () => [];
   store.getCafe = async () => [];
+  store.getYtVideos = async () => [];
+  store.getYtSnapshots = async () => [];
+  store.getYtKeyword = async () => [];
   store.addReport = async (r) => { saved = r; r.id = "test"; return r; };
 
   delete require.cache[require.resolve("../lib/report")];
@@ -166,12 +169,49 @@ function testBlogCafe() {
   ok("analyze: 콘텐츠 아이디어 생성", analyze.contentIdeas(a).length >= 1);
 }
 
+function testYoutube() {
+  console.log("[youtube]");
+  const ya = require("../lib/youtube_analyze");
+  const videos = [
+    { title: "AI 영상 제작 쇼츠 자동화", channel_title: "테크튜브", category_id: "28", view_count: 1500000, comment_count: 5000 },
+    { title: "AI 영상 제작 초보 가이드", channel_title: "테크튜브", category_id: "28", view_count: 300000, comment_count: 800 },
+    { title: "여름휴가 브이로그", channel_title: "여행로그", category_id: "19", view_count: 90000, comment_count: 120 }
+  ];
+  const a = ya.analyzePopular(videos, { stopwords: ["공식", "쇼츠"] });
+  ok("yt: 카테고리 분포", a.categoryDist.length >= 2);
+  ok("yt: 채널 반복 등장(테크튜브 2)", a.repeatedChannels.length >= 1 && a.repeatedChannels[0].count === 2);
+  ok("yt: 조회수 상위 정렬", a.topViews[0].view_count === 1500000);
+  ok("yt: stopword(쇼츠) 제외", a.titleWords.every(function (w) { return w.word.toLowerCase() !== "쇼츠"; }));
+
+  const score = ya.attentionScore({ popularAppearances: 2, bestRank: 5, viewCount: 1200000, highComment: true, trendMatched: true });
+  ok("yt: 주목도 점수 합산", score === (2 * 2 + 5 + 3 + 3 + 3));
+
+  const ks = ya.keywordSpread("AI 영상 제작", videos.slice(0, 2));
+  ok("yt: 키워드 확산 집계", ks.video_count === 2 && ks.max_view_count === 1500000);
+  ok("yt: 콘텐츠 아이디어 생성", ya.contentIdeas("AI 영상 제작", videos.slice(0, 2)).length >= 1);
+
+  // 키워드 검색 collector mock (키 없음)
+  delete require.cache[require.resolve("../lib/youtube")];
+  delete process.env.YOUTUBE_API_KEY;
+  const yt = require("../lib/youtube");
+  return ya, yt;
+}
+async function testYoutubeCollect() {
+  const yt = require("../lib/youtube");
+  const pop = await yt.popularVideos({ youtube: { region_code: "KR", max_popular_videos: 10 } });
+  ok("yt: 키 없으면 인기영상 mock", pop.usedMock === true && pop.items.length > 0);
+  const sr = await yt.keywordSearch(["AI 영상"], { youtube: { search_results_per_keyword: 5 } });
+  ok("yt: 키 없으면 키워드검색 mock", sr.usedMock === true && sr.relations.length > 0 && sr.videos.length > 0);
+}
+
 (async function () {
   try {
     await testCollectors();
     await testReport();
     testSpam();
     testBlogCafe();
+    testYoutube();
+    await testYoutubeCollect();
     console.log("\nAll " + pass + " checks passed ✅");
   } catch (e) {
     console.error("\n" + e.message);

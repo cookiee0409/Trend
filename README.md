@@ -8,6 +8,7 @@
 2. **네이버 데이터랩** (지정 키워드 그룹의 검색 관심도)
 3. **Trends24** 한국 X/Twitter 트렌드
 4. **네이버 블로그·카페 검색** (Google Trends 키워드의 블로그 확산/카페 반응 분석)
+5. **YouTube** (한국 인기 영상 + Google Trends 키워드 영상 검색)
 
 > 인스타그램은 제외. 값은 절대 검색량이 아니라 **검색 관심도 / 내부 기준 주목도**입니다.
 
@@ -109,9 +110,10 @@ git push -u origin main
 | ① 오늘의 트렌드 | 오늘 수집된 Google/Trends24/네이버 상승 그룹/새 키워드 + 로그 |
 | ② 리포트 | 일·주·월 리포트 생성, Markdown 복사/다운로드/삭제 |
 | ③ 블로그·카페 | 키워드별 블로그 확산/카페 반응 점수, 클릭 시 글 목록·콘텐츠 아이디어 |
-| ④ 키워드 후보 | 발견 키워드 상태 변경(new/watching/ignored/added_to_naver) |
-| ⑤ 스팸 분류 | 광고성 스팸 분류·관리(관찰/정식 적용, 화이트리스트, 사용자 스팸어) |
-| ⑥ 설정/데이터 | 수집 시간·지역·키워드 그룹·블로그카페 검색 설정, Trends24 수동 입력, 백업 |
+| ④ YouTube | 한국 인기 영상(썸네일/조회수/댓글), 카테고리·반복채널, 키워드 연결 영상 |
+| ⑤ 키워드 후보 | 발견 키워드 상태 변경(new/watching/ignored/added_to_naver) |
+| ⑥ 스팸 분류 | 광고성 스팸 분류·관리(관찰/정식 적용, 화이트리스트, 사용자 스팸어) |
+| ⑦ 설정/데이터 | 수집 시간·지역·키워드 그룹·블로그카페·YouTube 설정, Trends24 수동 입력, 백업 |
 
 ### 스팸 분류 (④ 탭)
 한국 X 트렌드에는 광고성 스팸(성인서비스/연락처유도/불법금융/도박)이 섞입니다.
@@ -158,18 +160,22 @@ npm run dev       # vercel dev (Vercel CLI 필요: npm i -g vercel)
     candidates.js         GET / PATCH 키워드 후보
     spam.js               GET 스팸 분류현황 / POST 모드·화이트리스트·스팸어 관리
     posts.js              GET 블로그/카페 글 목록 + 키워드별 요약(summary)
+    youtube.js            GET YouTube 인기영상/상위/채널/키워드연결
     reports.js            GET 목록 / POST 생성 / DELETE / (크론 generate)
     state.js              GET 전체 백업
   lib/                    공유 로직(함수가 아님, import 전용)
-    store.js              Upstash Redis(KV) 저장소 (snapshots/naver/blog/cafe/reports/candidates)
-    collect-service.js    수집 핵심 로직(트렌드 + 블로그/카페, collect/cron 공용)
+    store.js              KV 저장소 (snapshots/naver/blog/cafe/yt_*/reports/candidates)
+    collect-service.js    수집 핵심 로직(트렌드+블로그/카페+YouTube, collect/cron 공용)
     collectors.js         Google RSS / Trends24 / 네이버 데이터랩·블로그·카페 (+mock fallback)
+    youtube.js            YouTube Data API(인기영상/키워드검색, +mock fallback)
     report.js             규칙 기반 MD 리포트 (KST, generateAiSummary 자리)
     analyze.js            블로그 확산/카페 반응 분석 + 콘텐츠 아이디어(generateAiIdeas 자리)
+    youtube_analyze.js    YouTube 인기흐름/키워드확산/아이디어(generateAiYoutubeIdeas 자리)
     keyword_filter.js     제외 키워드/짧은 키워드 필터
     spam.js               스팸 분류기(보수적 규칙 + 화이트리스트/사용자어)
     normalize.js scoring.js mock.js http.js
-  config/ignore_keywords.json  제외 키워드 예시(참고용)
+  config/ignore_keywords.json   제외 키워드 예시(참고용)
+  config/youtube_stopwords.json YouTube 제목 분석 제외어(참고용)
   tests/integration.test.js
   vercel.json             Cron 스케줄
   package.json  .env.example  .gitignore
@@ -252,7 +258,38 @@ Google Trends 급상승 키워드가 **네이버 블로그(콘텐츠 생산)·�
 
 ---
 
-## 9. 향후 확장
+## 9. YouTube 데이터 (한국 인기 영상 + 키워드 검색)
+
+YouTube Data API v3 로 **한국 인기 영상**과 **Google Trends 키워드 검색 결과**를 수집해, 영상 흐름·콘텐츠 아이디어를 분석합니다.
+
+### YouTube API 키 발급
+1. https://console.cloud.google.com → 프로젝트 생성 → **YouTube Data API v3** 사용 설정(Enable)
+2. 사용자 인증 정보 → **API 키** 만들기
+3. Vercel → Settings → Environment Variables 에 추가 후 **Redeploy**:
+   ```
+   YOUTUBE_API_KEY = ...
+   ```
+   키가 없으면 YouTube는 **mock** 으로 동작합니다.
+
+### 동작
+- **한국 인기 영상**: `videos.list(chart=mostPopular, regionCode=KR, maxResults=50)` — 1회 호출(저렴, 1 unit)
+- **키워드 검색**: Google Trends 상위 키워드(기본 8개)로 `search.list` → videoId 모아 `videos.list` 배치 상세조회
+- 분석: 카테고리 분포 / 반복 채널 / 조회수·댓글 상위 / 제목 반복 표현 / 키워드 연결 영상 / 콘텐츠 아이디어(`generateAiYoutubeIdeas()` 자리)
+- ④ YouTube 탭 + 리포트 **11) YouTube 인기 영상 흐름** 섹션에 반영
+
+### API quota 주의
+- 기본 quota는 하루 **10,000 units**. `videos.list`=1, **`search.list`=100 units**(비쌈).
+- 키워드 검색 8개 = 약 800 units/회. 하루 1회 cron이면 여유롭지만, 수동 force 수집을 반복하면 빨리 소모됩니다.
+- quota가 부담되면 ⑦설정에서 **키워드 검색 끄기**(인기 영상만 수집) 또는 키워드 수를 줄이세요. quota 초과 시 자동으로 mock 폴백합니다.
+- stopwords: [config/youtube_stopwords.json](config/youtube_stopwords.json) (제목 반복표현 분석에서 제외할 일반어).
+
+### 데이터 해석 주의
+- 인기 영상은 **수집 시점 기준** 목록이며, 검색 결과는 전수 데이터가 아닙니다.
+- 조회수·좋아요·댓글 수는 **수집 시점 스냅샷**입니다. 제목/설명은 콘텐츠 아이디어 참고용입니다.
+
+---
+
+## 10. 향후 확장
 
 - [lib/report.js](lib/report.js) 의 `generateAiSummary()` 에 Claude/OpenAI API 를 연결하면 요약 품질을 높일 수 있습니다(현재 null, 규칙 기반만 사용).
 - 저장 데이터가 커지면 KV 배열 통째 읽기/쓰기 대신 페이지네이션/요약 테이블 도입을 고려하세요(개인용 규모에선 충분).

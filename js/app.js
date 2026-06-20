@@ -31,7 +31,7 @@
   }
 
   // 캐시
-  let state = { config: null, reports: [], candidates: [], naver: [], todaySnaps: [], spam: null, blogcafe: null };
+  let state = { config: null, reports: [], candidates: [], naver: [], todaySnaps: [], spam: null, blogcafe: null, youtube: null };
 
   /* ---------- 수집 ---------- */
   async function collect() {
@@ -57,8 +57,8 @@
   /* ---------- 데이터 로드 ---------- */
   async function refreshData() {
     const today = kstToday();
-    const [cfg, snaps, naver, cands, reps, spamData, bc] = await Promise.all([
-      API.getConfig(), API.getSnapshots(today, today), API.getNaver(), API.getCandidates(), API.getReports(), API.getSpam(), API.getPostsSummary()
+    const [cfg, snaps, naver, cands, reps, spamData, bc, yt] = await Promise.all([
+      API.getConfig(), API.getSnapshots(today, today), API.getNaver(), API.getCandidates(), API.getReports(), API.getSpam(), API.getPostsSummary(), API.getYoutube()
     ]);
     state.config = cfg.config;
     state.todaySnaps = snaps.snapshots;
@@ -67,6 +67,7 @@
     state.reports = reps.reports;
     state.spam = spamData;
     state.blogcafe = bc;
+    state.youtube = yt;
   }
 
   /* ---------- 화면 1: 오늘의 트렌드 ---------- */
@@ -249,7 +250,43 @@
     }).join("") + "</ul>";
   }
 
-  /* ---------- 화면 5: 스팸 분류 ---------- */
+  /* ---------- 화면 4: YouTube ---------- */
+  function renderYoutube() {
+    const y = state.youtube;
+    if (!y) return;
+    const cat = $("#yt-categories"), ch = $("#yt-channels"), kl = $("#yt-keyword-links"), pop = $("#yt-popular");
+
+    if (!y.category_dist || y.category_dist.length === 0) {
+      cat.innerHTML = "<p class='muted'>데이터 없음</p>";
+    } else {
+      cat.innerHTML = y.category_dist.slice(0, 6).map(function (c) { return "<span class='chip'>" + esc(c.category) + " " + c.count + "</span>"; }).join(" ");
+    }
+    ch.innerHTML = (y.repeated_channels && y.repeated_channels.length)
+      ? y.repeated_channels.slice(0, 8).map(function (c) { return "<span class='chip'>" + esc(c.channel) + " " + c.count + "</span>"; }).join(" ")
+      : "<p class='muted'>반복 채널 없음</p>";
+
+    if (y.keyword_links && y.keyword_links.length) {
+      kl.innerHTML = "<h3>Google Trends 키워드와 연결된 영상</h3>" +
+        "<table><thead><tr><th>키워드</th><th>관련 영상</th></tr></thead><tbody>" +
+        y.keyword_links.slice(0, 12).map(function (k) { return "<tr><td>" + esc(k.keyword) + "</td><td>" + k.video_count + "개</td></tr>"; }).join("") +
+        "</tbody></table>";
+    } else { kl.innerHTML = ""; }
+
+    if (!y.popular || y.popular.length === 0) {
+      pop.innerHTML = "<p class='muted'>수집된 인기 영상이 없습니다. [수집 실행] 후 표시됩니다. (YOUTUBE_API_KEY 필요, 없으면 mock)</p>";
+      return;
+    }
+    pop.innerHTML = y.popular.slice(0, 30).map(function (v) {
+      return "<div class='yt-item'>" +
+        (v.thumbnail_url ? "<img class='yt-thumb' src='" + esc(v.thumbnail_url) + "' alt='' loading='lazy'>" : "") +
+        "<div class='yt-meta'>" +
+        "<a href='" + esc(v.video_url) + "' target='_blank' rel='noopener'><b>" + (v.rank ? v.rank + ". " : "") + esc(v.title) + "</b></a>" +
+        "<div class='muted'>" + esc(v.channel_title) + " · " + esc(v.category) + " · 조회 " + Number(v.view_count || 0).toLocaleString() + " · 댓글 " + Number(v.comment_count || 0).toLocaleString() + "</div>" +
+        "</div></div>";
+    }).join("");
+  }
+
+  /* ---------- 화면 6: 스팸 분류 ---------- */
   function renderSpam() {
     const s = state.spam;
     if (!s) return;
@@ -327,6 +364,12 @@
     $("#set-ns-maxkw").value = ns.max_keywords_per_run || 8;
     $("#set-ns-maxres").value = ns.max_results_per_keyword || 30;
     $("#set-ignore").value = (s.ignore_keywords || []).join(", ");
+    const yt = s.youtube || {};
+    $("#set-yt-enabled").checked = yt.enabled !== false;
+    $("#set-yt-kwsearch").checked = yt.keyword_search_enabled !== false;
+    $("#set-yt-maxpop").value = yt.max_popular_videos || 50;
+    $("#set-yt-maxkw").value = yt.max_keywords_per_run || 8;
+    $("#set-yt-perkw").value = yt.search_results_per_keyword || 10;
   }
 
   async function saveSettings() {
@@ -341,6 +384,13 @@
       max_results_per_keyword: parseInt($("#set-ns-maxres").value, 10) || 30
     });
     s.ignore_keywords = $("#set-ignore").value.split(",").map(function (x) { return x.trim(); }).filter(Boolean);
+    s.youtube = Object.assign({}, s.youtube, {
+      enabled: $("#set-yt-enabled").checked,
+      keyword_search_enabled: $("#set-yt-kwsearch").checked,
+      max_popular_videos: parseInt($("#set-yt-maxpop").value, 10) || 50,
+      max_keywords_per_run: parseInt($("#set-yt-maxkw").value, 10) || 8,
+      search_results_per_keyword: parseInt($("#set-yt-perkw").value, 10) || 10
+    });
     let keywords;
     try { keywords = JSON.parse($("#set-keywords").value); }
     catch (e) { log("키워드 JSON 오류: " + e.message, "error"); return; }
@@ -363,6 +413,7 @@
     renderToday();
     renderReports();
     renderBlogCafe();
+    renderYoutube();
     renderCandidates();
     renderSpam();
     renderSettings();
