@@ -25,13 +25,13 @@ module.exports = async (req, res) => {
     videos.forEach(function (v) { vmap[v.video_id] = v; });
 
     const snaps = (await store.getYtSnapshots()).filter(function (s) { return inRange(s.collected_at, from, to); });
-    const popLatest = {};
-    snaps.filter(function (s) { return s.source_type === "popular"; }).forEach(function (s) {
-      const cur = popLatest[s.video_id];
-      if (!cur || s.collected_at > cur.collected_at) popLatest[s.video_id] = s;
-    });
-    const popVideos = Object.keys(popLatest).map(function (vid) {
-      const s = popLatest[vid]; const v = vmap[vid] || {};
+    // 가장 최근 수집 회차의 인기 영상만 사용(옛 mock과 실데이터 혼재 방지, 순위 중복 방지)
+    const popAll = snaps.filter(function (s) { return s.source_type === "popular"; });
+    let maxT = "";
+    popAll.forEach(function (s) { if (s.collected_at > maxT) maxT = s.collected_at; });
+    const popRun = popAll.filter(function (s) { return s.collected_at === maxT; });
+    const popVideos = popRun.map(function (s) {
+      const vid = s.video_id; const v = vmap[vid] || {};
       return {
         video_id: vid, title: v.title || "", channel_title: v.channel_title || "", channel_id: v.channel_id || "",
         category_id: v.category_id || "", category: ytAnalyze.categoryName(v.category_id),
@@ -43,8 +43,11 @@ module.exports = async (req, res) => {
 
     const analysis = ytAnalyze.analyzePopular(popVideos, { stopwords: stopwords });
 
-    // 키워드 연결 영상
-    const kwRows = (await store.getYtKeyword()).filter(function (r) { return inRange(r.collected_at, from, to); });
+    // 키워드 연결 영상 (가장 최근 수집 회차만)
+    const kwAll = (await store.getYtKeyword()).filter(function (r) { return inRange(r.collected_at, from, to); });
+    let kwMaxT = "";
+    kwAll.forEach(function (r) { if (r.collected_at > kwMaxT) kwMaxT = r.collected_at; });
+    const kwRows = kwAll.filter(function (r) { return r.collected_at === kwMaxT; });
     const kwMap = {};
     kwRows.forEach(function (r) {
       if (!kwMap[r.normalized_keyword]) kwMap[r.normalized_keyword] = { keyword: r.keyword, videos: {} };
