@@ -95,6 +95,8 @@ async function testReport() {
   store.getSnapshots = async () => snaps;
   store.getNaver = async () => naver;
   store.getCandidates = async () => cands;
+  store.getBlog = async () => [];
+  store.getCafe = async () => [];
   store.addReport = async (r) => { saved = r; r.id = "test"; return r; };
 
   delete require.cache[require.resolve("../lib/report")];
@@ -129,11 +131,47 @@ function testSpam() {
   ok("spam: extra_terms 없으면 '만남' 단독은 통과", spam.isSpam("팬 만남 행사", {}) === false);
 }
 
+function testBlogCafe() {
+  console.log("[blog/cafe]");
+  const { stripHtml, normalizeKeyword } = require("../lib/normalize");
+  const kf = require("../lib/keyword_filter");
+  const analyze = require("../lib/analyze");
+
+  ok("normalize: <b> 태그 제거", stripHtml("<b>AI 영상</b>") === "AI 영상");
+  ok("normalize: 키워드에 HTML 섞여도 정규화", normalizeKeyword("<b>AI 영상</b>") === "ai 영상");
+
+  ok("filter: 한 글자 제외", kf.shouldIgnore("아", []).ignore === true);
+  ok("filter: 숫자만 제외", kf.shouldIgnore("123", []).ignore === true);
+  ok("filter: 제외목록 부분일치", kf.shouldIgnore("오늘 로또 당첨", ["로또"]).ignore === true);
+  ok("filter: 일반 키워드 통과", kf.shouldIgnore("AI 영상 제작", ["로또"]).ignore === false);
+  const picked = kf.filterKeywords(["AI", "1", "로또번호", "여름휴가", "AI"], ["로또"], 5);
+  ok("filter: 정상만 + 중복제거", picked.indexOf("여름휴가") !== -1 && picked.indexOf("로또번호") === -1 && picked.filter(function (x) { return x === "AI"; }).length === 1);
+
+  // 분석: 카페 신호 + 블로그 확산
+  const blog = [
+    { title: "AI 영상 제작 방법 정리", description: "", postdate: new Date().toISOString().slice(0, 10).replace(/-/g, "") },
+    { title: "AI 영상 제작 후기", description: "" }
+  ];
+  const cafe = [
+    { title: "AI 영상 제작 어떻게 하나요?", description: "추천 좀" },
+    { title: "AI 영상 제작 후기 공유", description: "써봤어요" },
+    { title: "AI 영상 vs 다른거 비교", description: "차이가 뭔가요" }
+  ];
+  const a = analyze.analyzeKeyword("AI 영상 제작", blog, cafe);
+  ok("analyze: 블로그 신규수", a.blog_new_count === 2);
+  ok("analyze: 카페 신규수", a.cafe_new_count === 3);
+  ok("analyze: 카페 질문 신호 감지", a.cafe_signals.question >= 1);
+  ok("analyze: 카페 비교 신호 감지", a.cafe_signals.compare >= 1);
+  ok("analyze: 반복표현(AI/영상/제작)", a.repeated_phrases.length >= 1);
+  ok("analyze: 콘텐츠 아이디어 생성", analyze.contentIdeas(a).length >= 1);
+}
+
 (async function () {
   try {
     await testCollectors();
     await testReport();
     testSpam();
+    testBlogCafe();
     console.log("\nAll " + pass + " checks passed ✅");
   } catch (e) {
     console.error("\n" + e.message);

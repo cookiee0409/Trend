@@ -26,9 +26,10 @@
     <div class="tabs">
       <button class="tab active" data-tab="today">① 오늘의 트렌드</button>
       <button class="tab" data-tab="reports">② 리포트</button>
-      <button class="tab" data-tab="candidates">③ 키워드 후보</button>
-      <button class="tab" data-tab="spam">④ 스팸 분류</button>
-      <button class="tab" data-tab="settings">⑤ 설정 / 데이터</button>
+      <button class="tab" data-tab="blogcafe">③ 블로그·카페</button>
+      <button class="tab" data-tab="candidates">④ 키워드 후보</button>
+      <button class="tab" data-tab="spam">⑤ 스팸 분류</button>
+      <button class="tab" data-tab="settings">⑥ 설정 / 데이터</button>
     </div>
 
     <!-- 화면 1: 오늘의 트렌드 -->
@@ -84,7 +85,21 @@
       </div>
     </section>
 
-    <!-- 화면 4: 스팸 분류 -->
+    <!-- 화면 3: 블로그·카페 -->
+    <section class="panel" id="panel-blogcafe">
+      <div class="card">
+        <h2>블로그·카페 확산/반응 (최근 7일)</h2>
+        <p class="muted">Google Trends 키워드가 네이버 블로그(콘텐츠 생산)·카페(커뮤니티 반응)로 퍼지는 정도입니다.
+          행을 클릭하면 글 목록과 콘텐츠 아이디어를 볼 수 있습니다. 신규 글 수는 내부 수집 기준 참고 지표입니다.</p>
+        <div id="blogcafe-summary"></div>
+      </div>
+      <div class="card" id="blogcafe-detail" style="display:none">
+        <h2 id="bc-detail-title">키워드 상세</h2>
+        <div id="bc-detail-body"></div>
+      </div>
+    </section>
+
+    <!-- 화면 5: 스팸 분류 -->
     <section class="panel" id="panel-spam">
       <div class="card">
         <h2>스팸 분류 관리</h2>
@@ -137,8 +152,23 @@
         </select>
 
         <label>네이버 데이터랩 키워드 그룹 (JSON)</label>
-        <textarea id="set-keywords" rows="10"></textarea>
+        <textarea id="set-keywords" rows="8"></textarea>
         <p class="muted">※ API 키(NAVER_CLIENT_ID/SECRET)는 화면이 아니라 Vercel 환경변수로만 관리합니다.</p>
+
+        <h3>블로그·카페 검색</h3>
+        <label class="row-inline"><input type="checkbox" id="set-ns-enabled" /> 블로그·카페 수집 사용</label>
+        <div class="grid2" style="margin-top:8px">
+          <div>
+            <label>회당 최대 키워드 수</label>
+            <input type="text" id="set-ns-maxkw" placeholder="8" />
+          </div>
+          <div>
+            <label>키워드당 최대 결과 수</label>
+            <input type="text" id="set-ns-maxres" placeholder="30" />
+          </div>
+        </div>
+        <label>제외 키워드 (쉼표 구분, 블로그·카페 검색에서 제외)</label>
+        <input type="text" id="set-ignore" placeholder="로또, 날씨" />
 
         <div style="margin-top:14px">
           <button class="btn" id="btn-save-settings">설정 저장</button>

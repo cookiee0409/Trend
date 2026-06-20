@@ -43,7 +43,16 @@
     deleteReport: function (id) { return req("/api/reports?id=" + encodeURIComponent(id), { method: "DELETE" }); },
     getState: function () { return req("/api/state"); },
     getSpam: function () { return req("/api/spam"); },
-    spamAction: function (payload) { return req("/api/spam", { method: "POST", body: JSON.stringify(payload) }); }
+    spamAction: function (payload) { return req("/api/spam", { method: "POST", body: JSON.stringify(payload) }); },
+    getPostsSummary: function (from, to) {
+      let q = ["summary=1"];
+      if (from) q.push("from=" + from);
+      if (to) q.push("to=" + to);
+      return req("/api/posts?" + q.join("&"));
+    },
+    getPosts: function (type, keyword) {
+      return req("/api/posts?type=" + encodeURIComponent(type) + "&keyword=" + encodeURIComponent(keyword));
+    }
   };
 
   global.API = API;

@@ -7,6 +7,7 @@
 1. **Google Trends** (Trending Now RSS)
 2. **네이버 데이터랩** (지정 키워드 그룹의 검색 관심도)
 3. **Trends24** 한국 X/Twitter 트렌드
+4. **네이버 블로그·카페 검색** (Google Trends 키워드의 블로그 확산/카페 반응 분석)
 
 > 인스타그램은 제외. 값은 절대 검색량이 아니라 **검색 관심도 / 내부 기준 주목도**입니다.
 
@@ -107,9 +108,10 @@ git push -u origin main
 | --- | --- |
 | ① 오늘의 트렌드 | 오늘 수집된 Google/Trends24/네이버 상승 그룹/새 키워드 + 로그 |
 | ② 리포트 | 일·주·월 리포트 생성, Markdown 복사/다운로드/삭제 |
-| ③ 키워드 후보 | 발견 키워드 상태 변경(new/watching/ignored/added_to_naver) |
-| ④ 스팸 분류 | 광고성 스팸 분류·관리(관찰/정식 적용, 화이트리스트, 사용자 스팸어) |
-| ⑤ 설정/데이터 | 수집 시간·지역·키워드 그룹 편집, Trends24 수동 입력, 백업 |
+| ③ 블로그·카페 | 키워드별 블로그 확산/카페 반응 점수, 클릭 시 글 목록·콘텐츠 아이디어 |
+| ④ 키워드 후보 | 발견 키워드 상태 변경(new/watching/ignored/added_to_naver) |
+| ⑤ 스팸 분류 | 광고성 스팸 분류·관리(관찰/정식 적용, 화이트리스트, 사용자 스팸어) |
+| ⑥ 설정/데이터 | 수집 시간·지역·키워드 그룹·블로그카페 검색 설정, Trends24 수동 입력, 백업 |
 
 ### 스팸 분류 (④ 탭)
 한국 X 트렌드에는 광고성 스팸(성인서비스/연락처유도/불법금융/도박)이 섞입니다.
@@ -155,15 +157,19 @@ npm run dev       # vercel dev (Vercel CLI 필요: npm i -g vercel)
     naver.js              GET 네이버 데이터랩
     candidates.js         GET / PATCH 키워드 후보
     spam.js               GET 스팸 분류현황 / POST 모드·화이트리스트·스팸어 관리
+    posts.js              GET 블로그/카페 글 목록 + 키워드별 요약(summary)
     reports.js            GET 목록 / POST 생성 / DELETE / (크론 generate)
     state.js              GET 전체 백업
   lib/                    공유 로직(함수가 아님, import 전용)
-    store.js              Upstash Redis(KV) 저장소 (4개 테이블)
-    collect-service.js    수집 핵심 로직(collect/cron 공용)
-    collectors.js         Google RSS / Trends24 HTML / 네이버 API (+mock fallback)
+    store.js              Upstash Redis(KV) 저장소 (snapshots/naver/blog/cafe/reports/candidates)
+    collect-service.js    수집 핵심 로직(트렌드 + 블로그/카페, collect/cron 공용)
+    collectors.js         Google RSS / Trends24 / 네이버 데이터랩·블로그·카페 (+mock fallback)
     report.js             규칙 기반 MD 리포트 (KST, generateAiSummary 자리)
+    analyze.js            블로그 확산/카페 반응 분석 + 콘텐츠 아이디어(generateAiIdeas 자리)
+    keyword_filter.js     제외 키워드/짧은 키워드 필터
     spam.js               스팸 분류기(보수적 규칙 + 화이트리스트/사용자어)
     normalize.js scoring.js mock.js http.js
+  config/ignore_keywords.json  제외 키워드 예시(참고용)
   tests/integration.test.js
   vercel.json             Cron 스케줄
   package.json  .env.example  .gitignore
@@ -208,7 +214,37 @@ TREND_API=https://cookie-trend.vercel.app node tools/collect-trends24-local.js
 
 ---
 
-## 8. 향후 확장
+## 8. 네이버 블로그·카페 확산 분석
+
+Google Trends 급상승 키워드가 **네이버 블로그(콘텐츠 생산)·카페(커뮤니티 반응)** 로
+얼마나 퍼지는지 분석합니다. 수집 때 Google Trends 상위 키워드(기본 8개)로 블로그·카페 검색 API를 호출합니다.
+
+### 사전 준비 — 네이버 검색 API 추가
+데이터랩과 **별개로** "검색" API 권한이 필요합니다(같은 앱에 추가):
+1. https://developers.naver.com → 내 애플리케이션 → 사용 API → **검색** 추가
+2. 환경변수는 동일(`NAVER_CLIENT_ID`/`NAVER_CLIENT_SECRET`). 키가 없으면 **mock** 으로 동작합니다.
+
+### 동작
+- 수집 흐름: Google Trends 키워드 → (제외/짧은 키워드 필터) → 블로그 검색 + 카페 검색 → **link 기준 중복 제거** 저장
+- 분석:
+  - **블로그 확산 점수** = 신규 글 수 + 제목 반복표현 + 최근 작성일 가중치
+  - **카페 반응 점수** = 신규 글 수 + 질문/후기/비교/우려 신호 수
+  - **콘텐츠 아이디어**(규칙 기반) — 나중에 `generateAiIdeas()`(lib/analyze.js)에 AI 연결 가능
+- ③ 블로그·카페 탭에서 키워드별 점수 표 → 행 클릭 시 글 목록·반복표현·반응 신호·아이디어
+- 리포트에 **8) 블로그 확산 / 9) 카페 반응 / 10) 콘텐츠 아이디어** 섹션이 추가됩니다
+
+### 제외 키워드
+콘텐츠화하기 어려운 키워드는 ⑥설정의 **제외 키워드**(쉼표 구분)로 관리합니다.
+한 글자/숫자만/특수문자만 키워드는 자동 제외됩니다. 예시: [config/ignore_keywords.json](config/ignore_keywords.json).
+
+### 데이터 해석 주의
+- Google Trends는 급상승 검색어 **후보** 제공용입니다.
+- 네이버 블로그/카페 검색 결과는 **전수 데이터가 아니며**, 공개 검색 가능한 글 중심입니다.
+- 블로그/카페 신규 글 수는 **내부 수집 기준의 참고 지표**입니다. 전체 관심도처럼 단정하지 않습니다.
+
+---
+
+## 9. 향후 확장
 
 - [lib/report.js](lib/report.js) 의 `generateAiSummary()` 에 Claude/OpenAI API 를 연결하면 요약 품질을 높일 수 있습니다(현재 null, 규칙 기반만 사용).
 - 저장 데이터가 커지면 KV 배열 통째 읽기/쓰기 대신 페이지네이션/요약 테이블 도입을 고려하세요(개인용 규모에선 충분).

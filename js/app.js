@@ -31,7 +31,7 @@
   }
 
   // 캐시
-  let state = { config: null, reports: [], candidates: [], naver: [], todaySnaps: [], spam: null };
+  let state = { config: null, reports: [], candidates: [], naver: [], todaySnaps: [], spam: null, blogcafe: null };
 
   /* ---------- 수집 ---------- */
   async function collect() {
@@ -57,8 +57,8 @@
   /* ---------- 데이터 로드 ---------- */
   async function refreshData() {
     const today = kstToday();
-    const [cfg, snaps, naver, cands, reps, spamData] = await Promise.all([
-      API.getConfig(), API.getSnapshots(today, today), API.getNaver(), API.getCandidates(), API.getReports(), API.getSpam()
+    const [cfg, snaps, naver, cands, reps, spamData, bc] = await Promise.all([
+      API.getConfig(), API.getSnapshots(today, today), API.getNaver(), API.getCandidates(), API.getReports(), API.getSpam(), API.getPostsSummary()
     ]);
     state.config = cfg.config;
     state.todaySnaps = snaps.snapshots;
@@ -66,6 +66,7 @@
     state.candidates = cands.candidates;
     state.reports = reps.reports;
     state.spam = spamData;
+    state.blogcafe = bc;
   }
 
   /* ---------- 화면 1: 오늘의 트렌드 ---------- */
@@ -189,7 +190,66 @@
     });
   }
 
-  /* ---------- 화면 4: 스팸 분류 ---------- */
+  /* ---------- 화면 3: 블로그·카페 ---------- */
+  function renderBlogCafe() {
+    const bc = state.blogcafe;
+    const box = $("#blogcafe-summary");
+    if (!bc || !bc.rows || bc.rows.length === 0) {
+      box.innerHTML = "<p class='muted'>블로그·카페 수집 데이터가 없습니다. [수집 실행] 후 표시됩니다. (네이버 검색 API 키 필요, 없으면 mock)</p>";
+      $("#blogcafe-detail").style.display = "none";
+      return;
+    }
+    let html = "<table><thead><tr><th>키워드</th><th>구글순위</th><th>블로그 신규</th><th>카페 신규</th><th>확산점수</th><th>반응점수</th></tr></thead><tbody>";
+    bc.rows.forEach(function (r) {
+      html += "<tr class='bc-row' data-kw='" + esc(r.keyword) + "' style='cursor:pointer'>" +
+        "<td>" + esc(r.keyword) + "</td><td>" + (r.best_rank || "-") + "</td>" +
+        "<td>" + r.blog_new + "</td><td>" + r.cafe_new + "</td>" +
+        "<td>" + r.blog_spread_score + "</td><td>" + r.cafe_reaction_score + "</td></tr>";
+    });
+    box.innerHTML = html + "</tbody></table>";
+    $all(".bc-row").forEach(function (tr) {
+      tr.addEventListener("click", function () { openBlogCafeDetail(tr.getAttribute("data-kw")); });
+    });
+  }
+
+  async function openBlogCafeDetail(keyword) {
+    const detail = $("#blogcafe-detail");
+    detail.style.display = "block";
+    $("#bc-detail-title").textContent = "‘" + keyword + "’ 상세";
+    $("#bc-detail-body").innerHTML = "<p class='muted'>불러오는 중...</p>";
+    try {
+      const [blog, cafe] = await Promise.all([API.getPosts("blog", keyword), API.getPosts("cafe", keyword)]);
+      const a = blog.analysis || cafe.analysis || {};
+      let h = "";
+      if (a.content_ideas && a.content_ideas.length) {
+        h += "<h3>콘텐츠 아이디어</h3><ul>" + a.content_ideas.map(function (s) { return "<li>" + esc(s) + "</li>"; }).join("") + "</ul>";
+      }
+      if (a.repeated_phrases && a.repeated_phrases.length) {
+        h += "<h3>블로그 제목 반복 표현</h3>" + a.repeated_phrases.map(function (p) { return "<span class='chip'>" + esc(p.phrase) + " " + p.count + "</span>"; }).join(" ");
+      }
+      if (a.cafe_signals) {
+        const s = a.cafe_signals;
+        h += "<h3>카페 반응 신호</h3><p class='muted'>질문 " + s.question + " · 후기 " + s.review + " · 비교 " + s.compare + " · 우려 " + s.complaint + "</p>";
+      }
+      h += "<div class='grid2'>";
+      h += "<div><h3>블로그 글 (" + blog.posts.length + ")</h3>" + postList(blog.posts, "bloggername") + "</div>";
+      h += "<div><h3>카페글 (" + cafe.posts.length + ")</h3>" + postList(cafe.posts, "cafename") + "</div>";
+      h += "</div>";
+      $("#bc-detail-body").innerHTML = h;
+    } catch (e) {
+      $("#bc-detail-body").innerHTML = "<p class='muted'>불러오기 실패: " + esc(e.message) + "</p>";
+    }
+  }
+
+  function postList(posts, byField) {
+    if (!posts || posts.length === 0) return "<p class='muted'>없음</p>";
+    return "<ul>" + posts.slice(0, 20).map(function (p) {
+      const who = p[byField] ? " <span class='muted'>(" + esc(p[byField]) + ")</span>" : "";
+      return "<li><a href='" + esc(p.link) + "' target='_blank' rel='noopener'>" + esc(p.title) + "</a>" + who + "</li>";
+    }).join("") + "</ul>";
+  }
+
+  /* ---------- 화면 5: 스팸 분류 ---------- */
   function renderSpam() {
     const s = state.spam;
     if (!s) return;
@@ -262,6 +322,11 @@
     $("#set-geo").value = s.google_trends.geo;
     $("#set-trends24-region").value = s.trends24.region;
     $("#set-keywords").value = JSON.stringify(state.config.keywords, null, 2);
+    const ns = s.naver_search || {};
+    $("#set-ns-enabled").checked = ns.enabled !== false;
+    $("#set-ns-maxkw").value = ns.max_keywords_per_run || 8;
+    $("#set-ns-maxres").value = ns.max_results_per_keyword || 30;
+    $("#set-ignore").value = (s.ignore_keywords || []).join(", ");
   }
 
   async function saveSettings() {
@@ -270,6 +335,12 @@
     s.google_trends.geo = $("#set-geo").value.trim() || "KR";
     s.google_trends.rss_url = "https://trends.google.com/trending/rss?geo=" + s.google_trends.geo;
     s.trends24.region = $("#set-trends24-region").value;
+    s.naver_search = Object.assign({}, s.naver_search, {
+      enabled: $("#set-ns-enabled").checked,
+      max_keywords_per_run: parseInt($("#set-ns-maxkw").value, 10) || 8,
+      max_results_per_keyword: parseInt($("#set-ns-maxres").value, 10) || 30
+    });
+    s.ignore_keywords = $("#set-ignore").value.split(",").map(function (x) { return x.trim(); }).filter(Boolean);
     let keywords;
     try { keywords = JSON.parse($("#set-keywords").value); }
     catch (e) { log("키워드 JSON 오류: " + e.message, "error"); return; }
@@ -291,6 +362,7 @@
   function renderAll() {
     renderToday();
     renderReports();
+    renderBlogCafe();
     renderCandidates();
     renderSpam();
     renderSettings();
