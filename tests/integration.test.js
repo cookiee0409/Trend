@@ -167,6 +167,28 @@ function testBlogCafe() {
   ok("analyze: 카페 비교 신호 감지", a.cafe_signals.compare >= 1);
   ok("analyze: 반복표현(AI/영상/제작)", a.repeated_phrases.length >= 1);
   ok("analyze: 콘텐츠 아이디어 생성", analyze.contentIdeas(a).length >= 1);
+
+  // 뉴스 신호 + 확산 상태 분류
+  const news = [{ title: "AI 영상 서비스 출시 발표", description: "" }, { title: "저작권 논란 확산", description: "" }];
+  ok("analyze: 뉴스 신호 카운트", analyze.newsSignalCount(news) === 2);
+  ok("status: 뉴스 주도", analyze.classifySpread({ blogNew: 2, cafeNew: 2, newsNew: 20, cafeSignals: {} }) === "뉴스 주도");
+  ok("status: 블로그 확산", analyze.classifySpread({ blogNew: 12, cafeNew: 1, newsNew: 1, cafeSignals: {} }) === "블로그 확산");
+  ok("status: 커뮤니티 반응", analyze.classifySpread({ blogNew: 1, cafeNew: 9, newsNew: 1, cafeSignals: { question: 3 } }) === "커뮤니티 반응");
+  ok("status: 콘텐츠화 가능", analyze.classifySpread({ blogNew: 5, cafeNew: 6, newsNew: 1, cafeSignals: {} }) === "콘텐츠화 가능");
+  ok("status: 관찰 필요(낮음)", analyze.classifySpread({ blogNew: 1, cafeNew: 0, newsNew: 0, cafeSignals: {} }) === "관찰 필요");
+  const ri = analyze.realtimeIdeas("AI 영상 제작", blog, cafe, news);
+  ok("realtime: 아이디어(블로그/릴스/카드)", ri.flat.length >= 1 && Array.isArray(ri.reels));
+}
+
+async function testNewsCollector() {
+  console.log("[news]");
+  delete require.cache[require.resolve("../lib/collectors")];
+  delete process.env.NAVER_CLIENT_ID; delete process.env.NAVER_CLIENT_SECRET;
+  delete process.env.NAVER_SEARCH_CLIENT_ID; delete process.env.NAVER_SEARCH_CLIENT_SECRET;
+  const collectors = require("../lib/collectors");
+  const n = await collectors.naverNews("전기요금");
+  ok("news: 키 없으면 mock", n.usedMock === true && n.items.length > 0);
+  ok("news: link/originallink 존재", !!n.items[0].link);
 }
 
 function testYoutube() {
@@ -210,6 +232,7 @@ async function testYoutubeCollect() {
     await testReport();
     testSpam();
     testBlogCafe();
+    await testNewsCollector();
     testYoutube();
     await testYoutubeCollect();
     console.log("\nAll " + pass + " checks passed ✅");

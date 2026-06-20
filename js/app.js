@@ -31,7 +31,7 @@
   }
 
   // 캐시
-  let state = { config: null, reports: [], candidates: [], naver: [], todaySnaps: [], spam: null, blogcafe: null, youtube: null };
+  let state = { config: null, reports: [], candidates: [], naver: [], todaySnaps: [], spam: null, blogcafe: null, youtube: null, realtime: null };
 
   /* ---------- 수집 ---------- */
   async function collect() {
@@ -57,8 +57,8 @@
   /* ---------- 데이터 로드 ---------- */
   async function refreshData() {
     const today = kstToday();
-    const [cfg, snaps, naver, cands, reps, spamData, bc, yt] = await Promise.all([
-      API.getConfig(), API.getSnapshots(today, today), API.getNaver(), API.getCandidates(), API.getReports(), API.getSpam(), API.getPostsSummary(), API.getYoutube()
+    const [cfg, snaps, naver, cands, reps, spamData, bc, yt, rt] = await Promise.all([
+      API.getConfig(), API.getSnapshots(today, today), API.getNaver(), API.getCandidates(), API.getReports(), API.getSpam(), API.getPostsSummary(), API.getYoutube(), API.getRealtime()
     ]);
     state.config = cfg.config;
     state.todaySnaps = snaps.snapshots;
@@ -68,6 +68,7 @@
     state.spam = spamData;
     state.blogcafe = bc;
     state.youtube = yt;
+    state.realtime = rt;
   }
 
   /* ---------- 화면 1: 오늘의 트렌드 ---------- */
@@ -86,23 +87,7 @@
     $("#today-google").innerHTML = tableFor("google_trends");
     $("#today-x").innerHTML = tableFor("trends24_x");
 
-    const byGroup = {};
-    state.naver.forEach(function (r) { (byGroup[r.group_name] = byGroup[r.group_name] || []).push(r); });
-    const groups = Object.keys(byGroup);
-    if (groups.length === 0) {
-      $("#today-naver").innerHTML = "<p class='muted'>네이버 데이터랩 데이터가 없습니다.</p>";
-    } else {
-      let h = "<table><thead><tr><th>그룹</th><th>최근 ratio</th><th>직전 대비</th></tr></thead><tbody>";
-      groups.forEach(function (g) {
-        const rows = byGroup[g].slice().sort(function (a, b) { return a.date < b.date ? -1 : 1; });
-        const latest = rows[rows.length - 1].ratio;
-        const prev = rows.length >= 2 ? rows[rows.length - 2].ratio : latest;
-        const delta = latest - prev;
-        const cls = delta > 0 ? "up" : (delta < 0 ? "down" : "");
-        h += "<tr><td>" + esc(g) + "</td><td>" + latest + "</td><td class='" + cls + "'>" + (delta >= 0 ? "+" : "") + delta + "</td></tr>";
-      });
-      $("#today-naver").innerHTML = h + "</tbody></table>";
-    }
+    renderRealtime();
 
     const today = kstToday();
     const newC = state.candidates.filter(function (c) {
@@ -111,6 +96,115 @@
     $("#today-new").innerHTML = newC.length === 0
       ? "<p class='muted'>오늘 새로 발견된 키워드가 없습니다.</p>"
       : newC.slice(0, 30).map(function (c) { return "<span class='chip'>" + esc(c.keyword) + "</span>"; }).join(" ");
+  }
+
+  function truncate(s, n) {
+    s = String(s || "");
+    n = n || 40;
+    return s.length > n ? s.slice(0, n) + "..." : s;
+  }
+  function hhmm(iso) {
+    if (!iso) return "-";
+    return new Date(new Date(iso).getTime() + 9 * 3600 * 1000).toISOString().slice(11, 16);
+  }
+  function statusTag(status) {
+    var map = { "뉴스 주도": "news", "블로그 확산": "blog", "커뮤니티 반응": "cafe", "콘텐츠화 가능": "content", "관찰 필요": "watch" };
+    return "<span class='spread spread-" + (map[status] || "watch") + "'>" + esc(status) + "</span>";
+  }
+
+  /* ---------- 실시간 네이버 확산 감지 ---------- */
+  function renderRealtime() {
+    const rt = state.realtime;
+    const box = $("#today-realtime");
+    const rows = (rt && rt.rows) || [];
+    if (rows.length === 0) {
+      box.innerHTML = "<p class='muted'>실시간 확산 데이터가 없습니다. [수집 실행] 후 표시됩니다.</p>";
+      $("#today-status").innerHTML = "<p class='muted'>-</p>";
+      $("#today-ideas").innerHTML = "<p class='muted'>-</p>";
+      return;
+    }
+    let h = "<table><thead><tr><th>키워드</th><th>블로그</th><th>카페</th><th>뉴스</th><th>확산 상태</th><th>최근</th><th>대표 제목</th></tr></thead><tbody>";
+    rows.forEach(function (r) {
+      h += "<tr class='rt-row' data-kw='" + esc(r.keyword) + "' style='cursor:pointer'>" +
+        "<td><b>" + esc(r.keyword) + "</b></td>" +
+        "<td>" + r.blog_new + "</td><td>" + r.cafe_new + "</td><td>" + r.news_new + "</td>" +
+        "<td>" + statusTag(r.status) + "</td>" +
+        "<td class='muted'>" + hhmm(r.recent_at) + "</td>" +
+        "<td class='muted'>" + esc(truncate(r.latest_title, 40)) + "</td></tr>";
+    });
+    box.innerHTML = h + "</tbody></table>";
+    $all(".rt-row").forEach(function (tr) {
+      tr.addEventListener("click", function () { openRealtimeDetail(tr.getAttribute("data-kw")); });
+    });
+
+    // 3. 확산 상태별 키워드
+    const byStatus = {};
+    rows.forEach(function (r) { (byStatus[r.status] = byStatus[r.status] || []).push(r.keyword); });
+    $("#today-status").innerHTML = Object.keys(byStatus).map(function (st) {
+      return "<div style='margin-bottom:8px'>" + statusTag(st) + " " +
+        byStatus[st].slice(0, 12).map(function (k) { return "<span class='chip'>" + esc(k) + "</span>"; }).join(" ") + "</div>";
+    }).join("");
+
+    // 4. 콘텐츠 아이디어 (상위 키워드 클릭 유도)
+    const top = rows.filter(function (r) { return r.score > 0; }).slice(0, 5);
+    $("#today-ideas").innerHTML = top.length === 0
+      ? "<p class='muted'>확산 키워드가 쌓이면 아이디어가 표시됩니다.</p>"
+      : "<p class='muted'>키워드를 클릭하면 블로그/릴스/카드뉴스 아이디어를 볼 수 있습니다.</p>" +
+        top.map(function (r) { return "<span class='chip'>" + esc(r.keyword) + " (" + r.score + ")</span>"; }).join(" ");
+  }
+
+  async function openRealtimeDetail(keyword) {
+    const box = $("#realtime-detail");
+    box.style.display = "block";
+    box.innerHTML = "<p class='muted'>‘" + esc(keyword) + "’ 불러오는 중...</p>";
+    try {
+      const d = await API.getRealtimeDetail(keyword);
+      const titles = function (arr) {
+        return (arr && arr.length) ? "<ul>" + arr.map(function (t) { return "<li><a href='" + esc(t.link) + "' target='_blank' rel='noopener'>" + esc(truncate(t.title, 50)) + "</a></li>"; }).join("") + "</ul>" : "<p class='muted'>없음</p>";
+      };
+      const g = d.google || {};
+      const sig = (d.cafe && d.cafe.signals) || {};
+      let h = "<h3>‘" + esc(keyword) + "’ 상세</h3>";
+      h += "<p class='muted'>Google Trends: 최초 감지 " + hhmm(g.first_seen) + " · 최고순위 " + (g.best_rank || "-") + (g.traffic_text ? " · " + esc(g.traffic_text) : "") + "</p>";
+      // 콘텐츠 아이디어
+      const ideas = d.ideas || {};
+      const ideaList = (ideas.flat || []);
+      if (ideaList.length) h += "<h3>콘텐츠 아이디어</h3><ul>" + ideaList.map(function (s) { return "<li>" + esc(s) + "</li>"; }).join("") + "</ul>";
+      h += "<div class='grid2'>";
+      h += "<div><h3>블로그 확산 (" + (d.blog ? d.blog.count : 0) + ")</h3>" + titles(d.blog && d.blog.titles) +
+        ((d.blog && d.blog.phrases && d.blog.phrases.length) ? "<p class='muted'>반복표현: " + d.blog.phrases.slice(0, 5).map(function (p) { return esc(p.phrase); }).join(", ") + "</p>" : "") + "</div>";
+      h += "<div><h3>카페 반응 (" + (d.cafe ? d.cafe.count : 0) + ")</h3>" + titles(d.cafe && d.cafe.titles) +
+        "<p class='muted'>질문 " + (sig.question || 0) + " · 후기 " + (sig.review || 0) + " · 비교 " + (sig.compare || 0) + " · 우려 " + (sig.complaint || 0) + "</p></div>";
+      h += "</div>";
+      h += "<h3>뉴스 확산 (" + (d.news ? d.news.count : 0) + ")</h3>" + titles(d.news && d.news.titles);
+      box.innerHTML = h;
+    } catch (e) {
+      box.innerHTML = "<p class='muted'>불러오기 실패: " + esc(e.message) + "</p>";
+    }
+  }
+
+  /* ---------- 화면 7: 장기 검색 관심도 (데이터랩) ---------- */
+  function renderDatalab() {
+    const box = $("#datalab-table");
+    if (!box) return;
+    const byGroup = {};
+    state.naver.forEach(function (r) { (byGroup[r.group_name] = byGroup[r.group_name] || []).push(r); });
+    const groups = Object.keys(byGroup);
+    if (groups.length === 0) { box.innerHTML = "<p class='muted'>네이버 데이터랩 데이터가 없습니다.</p>"; return; }
+    const r2 = function (x) { return (Math.round(x * 100) / 100).toFixed(2); };
+    let h = "<table><thead><tr><th>그룹</th><th>최근 ratio</th><th>직전 대비</th><th>기간평균 대비</th></tr></thead><tbody>";
+    groups.forEach(function (g) {
+      const rows = byGroup[g].slice().sort(function (a, b) { return a.date < b.date ? -1 : 1; });
+      const latest = rows[rows.length - 1].ratio;
+      const prev = rows.length >= 2 ? rows[rows.length - 2].ratio : latest;
+      const avg = rows.reduce(function (s, x) { return s + x.ratio; }, 0) / rows.length;
+      const delta = latest - prev, da = latest - avg;
+      const cls = delta > 0 ? "up" : (delta < 0 ? "down" : "");
+      h += "<tr><td>" + esc(g) + "</td><td>" + r2(latest) + "</td>" +
+        "<td class='" + cls + "'>" + (delta >= 0 ? "+" : "") + r2(delta) + "</td>" +
+        "<td>" + (da >= 0 ? "+" : "") + r2(da) + "</td></tr>";
+    });
+    box.innerHTML = h + "</tbody></table>";
   }
 
   /* ---------- 화면 2: 리포트 ---------- */
@@ -416,6 +510,7 @@
     renderYoutube();
     renderCandidates();
     renderSpam();
+    renderDatalab();
     renderSettings();
   }
 

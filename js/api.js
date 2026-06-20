@@ -53,7 +53,9 @@
     getPosts: function (type, keyword) {
       return req("/api/posts?type=" + encodeURIComponent(type) + "&keyword=" + encodeURIComponent(keyword));
     },
-    getYoutube: function () { return req("/api/youtube"); }
+    getYoutube: function () { return req("/api/youtube"); },
+    getRealtime: function () { return req("/api/posts?realtime=1"); },
+    getRealtimeDetail: function (keyword) { return req("/api/posts?realtime=1&keyword=" + encodeURIComponent(keyword)); }
   };
 
   global.API = API;

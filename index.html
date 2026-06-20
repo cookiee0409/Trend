@@ -30,31 +30,49 @@
       <button class="tab" data-tab="youtube">④ YouTube</button>
       <button class="tab" data-tab="candidates">⑤ 키워드 후보</button>
       <button class="tab" data-tab="spam">⑥ 스팸 분류</button>
-      <button class="tab" data-tab="settings">⑦ 설정 / 데이터</button>
+      <button class="tab" data-tab="datalab">⑦ 장기 검색 관심도</button>
+      <button class="tab" data-tab="settings">⑧ 설정 / 데이터</button>
     </div>
 
     <!-- 화면 1: 오늘의 트렌드 -->
     <section class="panel active" id="panel-today">
       <div class="grid2">
         <div class="card">
-          <h2>오늘의 Google Trends 급상승 검색어</h2>
+          <h2>1. 오늘의 Google Trends 키워드</h2>
           <div id="today-google"></div>
         </div>
         <div class="card">
-          <h2>오늘의 Trends24 X/Twitter 트렌드</h2>
+          <h2>Trends24 X/Twitter 트렌드</h2>
           <div id="today-x"></div>
         </div>
+      </div>
+
+      <div class="card">
+        <h2>2. 실시간 네이버 확산 감지</h2>
+        <p class="muted">Google Trends 키워드가 네이버 블로그/카페/뉴스에 실제로 퍼지는지(신규 URL 수, 최근 24시간) 봅니다.
+          행을 클릭하면 상세·콘텐츠 아이디어가 열립니다. 검색 API total이 아닌 <b>새로 발견된 URL 수</b> 기준입니다.</p>
+        <div id="today-realtime"></div>
+        <div id="realtime-detail" style="display:none; margin-top:14px; border-top:1px solid var(--border); padding-top:12px"></div>
+      </div>
+
+      <div class="grid2">
         <div class="card">
-          <h2>네이버 데이터랩 상승 그룹</h2>
-          <div id="today-naver"></div>
+          <h2>3. 확산 상태별 키워드</h2>
+          <div id="today-status"></div>
         </div>
         <div class="card">
-          <h2>오늘 새로 발견된 키워드</h2>
-          <div id="today-new"></div>
+          <h2>4. 콘텐츠 아이디어</h2>
+          <div id="today-ideas"></div>
         </div>
       </div>
+
       <div class="card">
-        <h2>실행 로그</h2>
+        <h2>오늘 새로 발견된 키워드</h2>
+        <div id="today-new"></div>
+      </div>
+
+      <div class="card">
+        <h2>5. 실행 로그</h2>
         <div id="log-box"></div>
       </div>
     </section>
@@ -154,7 +172,17 @@
       </div>
     </section>
 
-    <!-- 화면 5: 설정 / 데이터 -->
+    <!-- 화면 7: 장기 검색 관심도 (네이버 데이터랩 보조) -->
+    <section class="panel" id="panel-datalab">
+      <div class="card">
+        <h2>네이버 데이터랩 그룹 추이</h2>
+        <p class="muted">미리 지정한 키워드 그룹의 <b>상대 검색 관심도</b>입니다. 실시간 인기 검색어 순위가 아니며,
+          장기(일·주·월) 추이 확인용 보조 지표입니다. ratio는 소수점 둘째 자리까지 표시합니다.</p>
+        <div id="datalab-table"></div>
+      </div>
+    </section>
+
+    <!-- 화면 8: 설정 / 데이터 -->
     <section class="panel" id="panel-settings">
       <div class="card">
         <h2>설정</h2>
