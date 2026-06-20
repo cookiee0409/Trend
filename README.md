@@ -219,10 +219,18 @@ TREND_API=https://cookie-trend.vercel.app node tools/collect-trends24-local.js
 Google Trends 급상승 키워드가 **네이버 블로그(콘텐츠 생산)·카페(커뮤니티 반응)** 로
 얼마나 퍼지는지 분석합니다. 수집 때 Google Trends 상위 키워드(기본 8개)로 블로그·카페 검색 API를 호출합니다.
 
-### 사전 준비 — 네이버 검색 API 추가
-데이터랩과 **별개로** "검색" API 권한이 필요합니다(같은 앱에 추가):
-1. https://developers.naver.com → 내 애플리케이션 → 사용 API → **검색** 추가
-2. 환경변수는 동일(`NAVER_CLIENT_ID`/`NAVER_CLIENT_SECRET`). 키가 없으면 **mock** 으로 동작합니다.
+### 사전 준비 — 네이버 검색 API 키
+데이터랩과 **별개로** "검색" API 가 필요합니다. 두 가지 방법:
+- **같은 앱에 추가**: https://developers.naver.com → 내 애플리케이션 → 사용 API → **검색** 추가 →
+  기존 `NAVER_CLIENT_ID`/`NAVER_CLIENT_SECRET` 그대로 사용.
+- **별도 앱/키 발급**(검색만 따로 만든 경우): 새 키를 Vercel 환경변수에 넣으세요.
+  ```
+  NAVER_SEARCH_CLIENT_ID = ...
+  NAVER_SEARCH_CLIENT_SECRET = ...
+  ```
+  → 블로그·카페 검색은 이 키를, 데이터랩은 기존 `NAVER_CLIENT_ID`/`SECRET` 를 사용합니다.
+  `NAVER_SEARCH_*` 가 비어 있으면 기존 키로 폴백합니다. 어느 쪽도 없으면 **mock** 으로 동작합니다.
+  > 환경변수 추가/변경 후에는 **Redeploy** 해야 적용됩니다.
 
 ### 동작
 - 수집 흐름: Google Trends 키워드 → (제외/짧은 키워드 필터) → 블로그 검색 + 카페 검색 → **link 기준 중복 제거** 저장
